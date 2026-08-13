@@ -1,0 +1,17 @@
+# Docker ignore for Chesself
+
+# Test files
+test.html
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Node.js (not used but included if someone adds deps later)
+node_modules/
+npm-debug.log*
+
+# IDE files
+.vscode/
+.idea/

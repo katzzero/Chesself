@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chesself - Chess Game with AI</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>♟️ Chesself</h1>
+            <div id="status-display" class="status-display">
+                <span id="game-status">White's turn</span>
+                <span id="result-message"></span>
+            </div>
+        </header>
+
+        <main>
+            <div class="board-container">
+                <table id="chess-board" class="chess-board">
+                    <tbody></tbody>
+                </table>
+            </div>
+
+            <div class="sidebar">
+                <div class="controls">
+                    <button id="play-again-btn" class="control-btn">↺ Play Again</button>
+                    <button id="ai-move-btn" class="control-btn">🤖 AI Move</button>
+                    <button id="offer-draw-btn" class="control-btn">🤝 Offer Draw</button>
+                    <button id="reset-btn" class="control-btn">⏹ Reset</button>
+                </div>
+
+                <div class="move-history">
+                    <h3>Move History</h3>
+                    <ul id="history-list"></ul>
+                </div>
+
+                <div class="stats">
+                    <h3>Game Stats</h3>
+                    <p>Total Moves: <span id="move-count">0</span></p>
+                    <p>AI Moves Made: <span id="ai-moves-count">0</span></p>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p>Chesself - Built with JavaScript Chess Engine & Mini LLM AI</p>
+        </footer>
+    </div>
+
+    <!-- Piece emojis for chess pieces -->
+    <div id="pieces-template" style="display: none;">
+        <span class="piece white king">♔</span>
+        <span class="piece white queen">♕</span>
+        <span class="piece white rook">♖</span>
+        <span class="piece white bishop">♗</span>
+        <span class="piece white knight">♘</span>
+        <span class="piece white pawn">♙</span>
+        <span class="piece black king">♚</span>
+        <span class="piece black queen">♛</span>
+        <span class="piece black rook">♜</span>
+        <span class="piece black bishop">♝</span>
+        <span class="piece black knight">♞</span>
+        <span class="piece black pawn">♟</span>
+    </div>
+
+    <script src="game.js"></script>
+    <script src="model.js"></script>
+    <script>
+        // Initialize game when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            const game = new ChessGame();
+            game.init();
+            
+            // Store reference for debugging
+            window.chessGame = game;
+        });
+    </script>
+</body>
+</html>
