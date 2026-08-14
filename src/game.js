@@ -15,8 +15,8 @@ class ChessGame {
          this.gameOver = false;
          this.resultMessage = '';
 
-         // Initialize the Minimax Engine
-         this.ai = new ChessLLM();
+         // Initialize the Minimax AI
+         this.ai = new ChessAI();
          this.ai.setMoveGenerator((board, side) => this.getAllValidMovesForMinimax(board, side));
 
          // Game state tracking

@@ -124,9 +124,9 @@ const AI_CHARACTERS = {
     }
 };
 
-class ChessLLM {
+class ChessAI {
     constructor() {
-        // Small neural network weights - self-contained, no external deps
+        // Feature weights for position evaluation
         this.weights = this.initializeWeights();
         this.bias = new Array(128).fill(0);
 
@@ -217,7 +217,7 @@ class ChessLLM {
     }
 
     /**
-     * Simple neural network forward pass for move evaluation
+     * Quick move evaluation for ordering
      */
     evaluateMove(board, fromRow, fromCol, toRow, toCol, piece, isCheck, isCheckmate) {
         // Get base value of the piece being moved
@@ -876,17 +876,16 @@ class ChessLLM {
 
         const heuristic = whiteScore - blackScore;
 
-        // Neural network evaluation: dot-product of encoded board features with weights.
-        // This adds a learned positional bias on top of the handcrafted heuristic.
+        // Simple feature-based evaluation: encode board and apply weights
         const features = this.encodeBoard(board, turn, null, null);
-        let nnScore = 0;
+        let featureScore = 0;
         const len = Math.min(features.length, this.weights.length);
         for (let i = 0; i < len; i++) {
-            nnScore += features[i] * this.weights[i];
+            featureScore += features[i] * this.weights[i];
         }
 
-        // Scale NN contribution so it refines rather than overwhelms the heuristic.
-        const total = heuristic + nnScore * 5;
+        // Combine heuristic and feature-based evaluation
+        const total = heuristic + featureScore * 5;
         return turn === 'w' ? total : -total;
     }
 
@@ -1005,5 +1004,5 @@ class ChessLLM {
 
 // Export for use in other modules (if using modules)
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = ChessLLM;
+    module.exports = ChessAI;
 }
