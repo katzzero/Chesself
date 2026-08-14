@@ -1,0 +1,17 @@
+Chesself - Chess Game with AI
+
+A complete, self-contained chess game featuring 7 AI opponents with unique play styles. Built entirely in JavaScript with no external dependencies.
+
+Features:
+- Full chess engine: castling, en passant, check/checkmate/stalemate
+- 7 AI opponents: Tutorial Terry, Vinny the Villain, Eddie the Explorer, Cautious Carl, Mighty Marvin, Hardcore Harry, Impossible Ivan
+- Draw rules: 50-move rule, threefold repetition, insufficient material
+- Game auto-saves to browser storage
+- Interactive UI with character chat
+
+Run locally:
+docker run -d -p 80:80 katzzero/chesself
+
+Or open src/index.html directly in your browser.
+
+Powered by Minimax alpha-beta pruning algorithm with configurable depth per opponent.
