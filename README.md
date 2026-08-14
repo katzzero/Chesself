@@ -1,169 +1,90 @@
 # Chesself - Chess Game with AI
 
-A complete, self-contained chess game implementation featuring a mini neural network LLM for AI moves. Built entirely in JavaScript with no external dependencies.
+A complete, self-contained chess game implementation featuring a Minimax engine for AI moves. Built entirely in JavaScript with no external dependencies.
 
 ## Features
 
 - **Complete Chess Engine**: Full move validation, check detection, checkmate, stalemate
-- **AI Opponent**: Mini LLM neural network (<10KB) using minimax with position evaluation
-- **En Passant & Castling**: All standard chess rules implemented
+- **7 AI Opponents**: Each with unique play style (aggressive, defensive, positional, etc.)
+- **Draw Rules**: 50-move rule, threefold repetition, insufficient material, stalemate
+- **Game Persistence**: Auto-saves progress to localStorage
 - **Interactive UI**: Click-to-move interface with visual feedback
-- **Game History**: Move tracking and notation display
+- **Character Chat**: AI opponents talk via toast notifications
 
-## Project Structure
-
-```
-chesself-chess/
-├── src/
-│   ├── index.html    # Main HTML file with all UI elements
-│   ├── styles.css    # Complete styling for board, pieces, controls
-│   ├── game.js       # Chess engine + game state management
-│   └── model.js      # Mini LLM neural network for AI moves
-├── docker/
-│   └── Dockerfile    # Self-contained Docker container
-└── README.md         # This file
-```
-
-## Quick Start (Local)
+## Quick Start
 
 ### Option 1: Direct File Access
-Simply open `src/index.html` in any modern web browser. No server needed!
+Open `src/index.html` in any modern web browser. No server needed!
 
-### Option 2: With Live Server (Recommended for development)
+### Option 2: With Live Server
 ```bash
-# Install live-server globally if you haven't
-npm install -g live-server
-
-# Navigate to the project directory and start the server
-cd chesself-chess/src
-live-server
+cd src
+live-server .
 ```
 
 ## Docker Setup
 
-### Build the Image
 ```bash
+# Build
 docker build -t chesself:latest ./docker/
-```
 
-### Run the Container
-```bash
+# Run
 docker run -d -p 80:80 --name chesself-game chesself:latest
 ```
 
-The game will be available at `http://localhost` in your browser.
+Access at `http://localhost`
 
-### Docker Commands Reference
+## AI Opponents
 
-```bash
-# Build with specific tag
-docker build -t chesself-chess:v1.0 ./docker/
+| Character | Difficulty | Style |
+|-----------|-----------|-------|
+| Tutorial Terry | Tutorial | Educational - highlights legal moves |
+| Vinny the Villain | Very Easy | Chaotic, lots of blunders |
+| Eddie the Explorer | Easy | Sacrificial, values activity over material |
+| Cautious Carl | Careful | Defensive, protects king |
+| Mighty Marvin | Medium | Positional, controls center |
+| Hardcore Harry | Hard | Aggressive, attacks relentlessly |
+| Impossible Ivan | Impossible | Perfect calculation |
 
-# Run interactively (for testing)
-docker run -it --rm -p 80:80 chesself:latest
-
-# Stop and remove container
-docker stop chesself-game && docker rm chesself-game
-
-# View logs
-docker logs chesself-game
-
-# Rebuild after changes
-docker build --no-cache -t chesself:latest ./docker/
-```
-
-## Game Controls
-
-- **Click on a piece** to select it (your pieces only)
-- **Click on an empty square** to move the selected piece there
-- **Click on your own piece again** to deselect/reselect different piece
-- **AI automatically plays** after valid human moves
-
-### Control Buttons
-
-- **↺ Play Again**: Resets the game with a fresh board
-- **🤖 AI Move**: Forces an AI move (useful when stuck)
-- **⏹ Reset**: Same as "Play Again" - clears all state
-
-## How the Mini LLM Works
+## How the AI Works
 
 The AI (`model.js`) uses:
 
-1. **Position Evaluation**: Neural network-style evaluation based on:
+1. **Minimax Algorithm** with alpha-beta pruning:
+   - Configurable search depth (1-7 plies)
+   - Iterative deepening for better move ordering
+   - Quiescence search to avoid horizon effect
+
+2. **Position Evaluation** based on:
    - Piece values (pawn=100, knight/bishop≈320, rook=500, queen=900)
-   - Positional bonuses (center control, pawn chains, open files)
-   - Game phase awareness (opening vs endgame)
+   - Positional bonuses (center control, king safety, mobility)
+   - Style-specific multipliers for personality
 
-2. **Minimax Algorithm**: With alpha-beta pruning for move selection:
-   - Search depth of 2-3 moves ahead
-   - Evaluates all legal moves at each position
-   - Chooses best move based on evaluation score
+3. **MVV-LVA Move Ordering**: Prioritizes winning captures for better pruning
 
-3. **Opening Book**: Simple opening moves for early game
-
-4. **Checkmate/Stalemate Detection**: AI prioritizes winning moves and avoids losing positions
-
-**Model Size**: ~10KB (well under the 1MB requirement)
+4. **Opening Book**: Simple opening moves for early game
 
 ## Technical Details
 
-### Move Generation
-- Piece-specific move generators (pawn, knight, bishop, rook, queen, king)
-- En passant target tracking
-- Castling rights management
-- Legal vs illegal move filtering (king safety check)
+### Move Validation
+- Pawns: forward movement, 2-step start, diagonal capture, en passant
+- Knights: L-shape jumps
+- Bishops/Rooks/Queens: Sliding movement
+- King: 1 square any direction, castling
+- Legal move filtering (cannot move into check)
 
-### Validation
-- All standard chess rules enforced:
-  - Pawns move forward, capture diagonally
-  - Pieces cannot jump over other pieces (except knights)
-  - Kings move one square in any direction
-  - Castling requires empty path and no prior king/rook moves
-  - En passant captures immediately after two-square pawn advance
-
-### Game States Tracked
-- Board position (8x8 array)
-- Current turn (white/black)
-- Move history with full notation
-- En passant target square
-- Castling rights for both sides
-- Check/checkmate/stalemate detection
+### Game States
+- Check, Checkmate, Stalemate detection
+- Draw by 50-move rule, threefold repetition, insufficient material
+- Castling rights tracking
+- En passant target
 
 ## Browser Compatibility
 
-Works in all modern browsers:
-- Chrome 60+
-- Firefox 55+
-- Safari 12+
-- Edge 79+
+- Chrome 60+, Firefox 55+, Safari 12+, Edge 79+
 
-No external libraries or frameworks required!
-
-## Development Notes
-
-### Code Architecture
-
-**model.js (ChessLLM class)**:
-```javascript
-const ai = new ChessLLM();
-ai.getMove(board, validMoves, turn) // Returns best move
-```
-
-**game.js (ChessGame class)**:
-```javascript
-const game = new ChessGame();
-game.init();                    // Setup and bind events
-game.makeMove(fromRow, fromCol, toRow, toCol);  // Execute a move
-game.makeAIMove();              // Let AI play
-```
-
-### Extending the Game
-
-To modify piece values or add features:
-1. Edit `model.js` - adjust `pieceValues` object for different piece preferences
-2. Add new UI elements in `index.html` and bind them in `game.js`
-3. Modify CSS in `styles.css` to change visual appearance
+No external libraries required!
 
 ## License
 
-This is a demonstration project created by Chesself team. Feel free to use, modify, and distribute.
+GNU GPL v3 - See LICENSE file
