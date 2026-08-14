@@ -7,6 +7,14 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+    <!-- Character Selection Modal -->
+    <div id="character-modal" class="character-modal">
+        <div class="character-modal-content">
+            <h2>Choose Your Opponent</h2>
+            <div id="character-grid" class="character-grid"></div>
+        </div>
+    </div>
+
     <div class="container">
         <header>
             <h1>♟️ Chesself</h1>
@@ -24,10 +32,14 @@
             </div>
 
             <div class="sidebar">
+                <div class="current-opponent" id="current-opponent">
+                    <span id="opponent-emoji"></span>
+                    <span id="opponent-name"></span>
+                </div>
+
                 <div class="controls">
                     <button id="play-again-btn" class="control-btn">↺ Play Again</button>
-                    <button id="ai-move-btn" class="control-btn">🤖 AI Move</button>
-                    <button id="offer-draw-btn" class="control-btn">🤝 Offer Draw</button>
+                    <button id="change-opponent-btn" class="control-btn">👥 Change Opponent</button>
                     <button id="reset-btn" class="control-btn">⏹ Reset</button>
                 </div>
 
@@ -39,13 +51,12 @@
                 <div class="stats">
                     <h3>Game Stats</h3>
                     <p>Total Moves: <span id="move-count">0</span></p>
-                    <p>AI Moves Made: <span id="ai-moves-count">0</span></p>
                 </div>
             </div>
         </main>
 
         <footer>
-            <p>Chesself - Built with JavaScript Chess Engine & Mini LLM AI</p>
+            <p>Chesself - JavaScript Chess Engine with Minimax Alpha-Beta Pruning</p>
         </footer>
     </div>
 

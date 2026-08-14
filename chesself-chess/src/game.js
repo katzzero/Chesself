@@ -1,8 +1,8 @@
 /**
  * Chesself - Main Game Engine
- * 
+ *
  * Complete chess implementation with move validation, check detection,
- * AI integration via mini LLM.
+ * AI integration via Minimax Alpha-Beta Pruning.
  */
 
 class ChessGame {
@@ -15,8 +15,9 @@ class ChessGame {
          this.gameOver = false;
          this.resultMessage = '';
 
-         // Initialize the AI LLM
+         // Initialize the Minimax Engine
          this.ai = new ChessLLM();
+         this.ai.setMoveGenerator((board, side) => this.getAllValidMovesForMinimax(board, side));
 
          // Game state tracking
          this.stats = {
@@ -38,17 +39,19 @@ class ChessGame {
     // Save game to localStorage
     saveGame() {
          const saveData = {
-             board: this.board,
-             turn: this.turn,
-             moveHistory: this.moveHistory,
-             stats: this.stats,
-             enPassantTarget: this.enPassantTarget,
-             castlingRights: this.castlingRights,
-             halfMoveClock: this.halfMoveClock,
-             positionHistory: this.positionHistory,
-             gameOver: this.gameOver,
-             resultMessage: this.resultMessage,
-             drawOffered: this.drawOffered
+              board: this.board,
+              turn: this.turn,
+              moveHistory: this.moveHistory,
+              stats: this.stats,
+              enPassantTarget: this.enPassantTarget,
+              castlingRights: this.castlingRights,
+              halfMoveClock: this.halfMoveClock,
+              positionHistory: this.positionHistory,
+              gameOver: this.gameOver,
+              resultMessage: this.resultMessage,
+              drawOffered: this.drawOffered,
+              currentCharacterId: this.ai.getCharacter().id,
+              characterStats: this.getCharacterStats()
          };
          localStorage.setItem('chesself_save', JSON.stringify(saveData));
     }
@@ -71,6 +74,14 @@ class ChessGame {
              this.gameOver = data.gameOver || false;
              this.resultMessage = data.resultMessage || '';
              this.drawOffered = data.drawOffered || false;
+
+             if (data.currentCharacterId) {
+                 this.ai.setCharacter(data.currentCharacterId);
+             }
+             if (data.characterStats) {
+                 this.setCharacterStats(data.characterStats);
+             }
+
              return true;
          } catch (e) {
              console.error('Failed to load save:', e);
@@ -83,8 +94,74 @@ class ChessGame {
          localStorage.removeItem('chesself_save');
     }
 
+    // Character stats management
+    getCharacterStats() {
+         const saved = localStorage.getItem('chesself_character_stats');
+         if (saved) {
+             return JSON.parse(saved);
+         }
+         // Initialize empty stats for all characters
+         const stats = {};
+         Object.keys(AI_CHARACTERS).forEach(id => {
+             stats[id] = { played: 0, wins: 0, losses: 0, draws: 0 };
+         });
+         return stats;
+    }
+
+    setCharacterStats(stats) {
+         localStorage.setItem('chesself_character_stats', JSON.stringify(stats));
+    }
+
+    updateCharacterStats(result) {
+         const charId = this.ai.getCharacter().id;
+         const stats = this.getCharacterStats();
+         if (!stats[charId]) {
+             stats[charId] = { played: 0, wins: 0, losses: 0, draws: 0 };
+         }
+         stats[charId].played++;
+         if (result === 'win') stats[charId].wins++;
+         else if (result === 'loss') stats[charId].losses++;
+         else stats[charId].draws++;
+         this.setCharacterStats(stats);
+    }
+
     init() {
-         // Try to load saved game
+         this.showCharacterModal();
+    }
+
+    showCharacterModal() {
+         const modal = document.getElementById('character-modal');
+         const grid = document.getElementById('character-grid');
+
+         grid.innerHTML = '';
+
+         Object.values(AI_CHARACTERS).forEach(char => {
+             const card = document.createElement('div');
+             card.className = 'character-card';
+             card.innerHTML = `
+                 <div class="emoji">${char.emoji}</div>
+                 <div class="name">${char.name}</div>
+                 <div class="difficulty ${char.id}">${char.difficulty}</div>
+                 <div class="description">${char.description}</div>
+             `;
+             card.addEventListener('click', () => this.selectCharacter(char.id));
+             grid.appendChild(card);
+         });
+
+         modal.style.display = 'flex';
+    }
+
+    selectCharacter(characterId) {
+         const character = AI_CHARACTERS[characterId];
+         if (!character) return;
+
+         this.ai.setCharacter(characterId);
+
+         const modal = document.getElementById('character-modal');
+         modal.style.display = 'none';
+
+         this.updateOpponentDisplay();
+
          if (!this.loadGame()) {
              this.createBoard();
          }
@@ -92,6 +169,25 @@ class ChessGame {
          this.bindEvents();
          this.updateStatusDisplay();
          this.updateHistoryDisplay();
+
+         setTimeout(() => {
+             this.showToast(`${character.emoji} ${character.name} - ${character.greeting[0]}`, 3000, 'chat');
+         }, 300);
+    }
+
+    updateOpponentDisplay() {
+         const char = this.ai.getCharacter();
+         document.getElementById('opponent-emoji').textContent = char.emoji;
+         document.getElementById('opponent-name').textContent = char.name;
+
+         const opponentEl = document.getElementById('current-opponent');
+         if (this.gameOver) {
+             opponentEl.classList.add('clickable');
+             opponentEl.title = 'Click to change opponent';
+         } else {
+             opponentEl.classList.remove('clickable');
+             opponentEl.title = '';
+         }
     }
 
     createBoard() {
@@ -164,9 +260,75 @@ const pieceMap = {
     bindEvents() {
          // Control buttons
          document.getElementById('play-again-btn').addEventListener('click', () => this.resetGame());
-         document.getElementById('ai-move-btn').addEventListener('click', () => this.makeAIMove());
-         document.getElementById('offer-draw-btn').addEventListener('click', () => this.offerDraw());
+         document.getElementById('change-opponent-btn').addEventListener('click', () => {
+             this.resetGame();
+             this.showCharacterModal(true);
+         });
          document.getElementById('reset-btn').addEventListener('click', () => this.resetBoard());
+
+         // Click on opponent to change character (only when game is over)
+         document.getElementById('current-opponent').addEventListener('click', () => {
+             if (this.gameOver) {
+                 this.resetGame();
+                 this.showCharacterModal(true);
+             }
+         });
+    }
+
+    // Toast notification system
+    showToast(message, duration = 3000, type = 'info') {
+        let container = document.getElementById('toast-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'toast-container';
+            container.style.cssText = 'position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 1000; display: flex; flex-direction: column; gap: 10px; align-items: center;';
+            document.body.appendChild(container);
+        }
+
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        toast.textContent = message;
+        toast.style.cssText = `
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            max-width: 350px;
+            text-align: center;
+            animation: toastIn 0.3s ease;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        `;
+
+        // Type-specific styling
+        if (type === 'chat') {
+            toast.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+            toast.style.color = 'white';
+        } else if (type === 'win') {
+            toast.style.background = 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)';
+            toast.style.color = 'white';
+        } else if (type === 'lose') {
+            toast.style.background = 'linear-gradient(135deg, #eb3349 0%, #f45c43 100%)';
+            toast.style.color = 'white';
+        } else {
+            toast.style.background = 'rgba(30, 30, 30, 0.95)';
+            toast.style.color = 'white';
+        }
+
+        container.appendChild(toast);
+
+        setTimeout(() => {
+            toast.style.animation = 'toastOut 0.3s ease forwards';
+            setTimeout(() => toast.remove(), 300);
+        }, duration);
+    }
+
+    // Character chat message
+    showCharacterChat(type) {
+        if (this.gameOver) return;
+        const chat = this.ai.getChat(type);
+        if (chat) {
+            const char = this.ai.getCharacter();
+            this.showToast(`${char.emoji} ${chat}`, 3000, 'chat');
+        }
     }
 
     onSquareClick(row, col) {
@@ -232,20 +394,34 @@ const pieceMap = {
 
          this.clearSelection();
          this.selectedPiece = { row, col };
-         
+
          // Highlight the selected square
          const td = document.querySelector(`td[data-row="${row}"][data-col="${col}"]`);
          td.classList.add('highlight');
 
          // Calculate and show valid moves
          this.validMoves = this.getValidMoves(row, col);
-         
+
+         // Tutorial mode - special highlighting and tips
+         const isTutorial = this.ai.getCharacter().depth === 0;
+
          this.validMoves.forEach(move => {
              const targetTd = document.querySelector(`td[data-row="${move.to.row}"][data-col="${move.to.col}"]`);
              if (targetTd) {
-                 targetTd.classList.add('valid-move');
+                 if (isTutorial) {
+                     targetTd.classList.add('tutorial-move');
+                 } else {
+                     targetTd.classList.add('valid-move');
+                 }
              }
          });
+
+         // Show tutorial tip for first move
+         if (isTutorial && this.moveHistory.length === 0 && this.validMoves.length > 0) {
+             setTimeout(() => {
+                 this.showToast("🎓 Click a green square to move your piece!", 4000, 'info');
+             }, 300);
+         }
     }
 
     clearSelection() {
@@ -860,7 +1036,7 @@ const pieceMap = {
      offerDraw() {
          if (this.gameOver) return;
          this.gameOver = true;
-         this.resultMessage = "Game ended in DRAW by mutual agreement";
+         this.resultMessage = "DRAW by mutual agreement";
          this.stats.draws++;
          this.updateStatusDisplay();
          this.renderBoard();
@@ -879,11 +1055,11 @@ const pieceMap = {
          return true;
      }
 
-    checkGameStatus() {
+     checkGameStatus() {
          // Check for draw conditions first
          if (this.halfMoveClock >= 100) {
              this.gameOver = true;
-             this.resultMessage = "DRAW - 50-move rule!";
+             this.resultMessage = "DRAW - 50 moves without pawn move or capture!";
              this.stats.draws++;
              this.updateStatusDisplay();
              return;
@@ -891,7 +1067,7 @@ const pieceMap = {
 
          if (this.checkThreefoldRepetition()) {
              this.gameOver = true;
-             this.resultMessage = "DRAW - Threefold repetition!";
+             this.resultMessage = "DRAW - Same position 3 times!";
              this.stats.draws++;
              this.updateStatusDisplay();
              return;
@@ -899,7 +1075,7 @@ const pieceMap = {
 
          if (this.hasInsufficientMaterial()) {
              this.gameOver = true;
-             this.resultMessage = "DRAW - Insufficient material!";
+             this.resultMessage = "DRAW - Neither side can checkmate!";
              this.stats.draws++;
              this.updateStatusDisplay();
              return;
@@ -914,17 +1090,31 @@ const pieceMap = {
             if (isCheck) {
                 // Checkmate!
                 this.gameOver = true;
-                this.resultMessage = `${this.turn === 'w' ? "White" : "Black"} is in CHECKMATE!`;
+                const winner = this.turn === 'w' ? "Black" : "White";
+                this.resultMessage = `CHECKMATE! ${winner} wins!`;
+
+                // Update character stats
+                if (winner === 'Black') {
+                    // AI (Black) won
+                    this.updateCharacterStats('loss');
+                    setTimeout(() => this.showCharacterChat('win'), 500);
+                } else {
+                    // Player won
+                    this.updateCharacterStats('win');
+                    setTimeout(() => this.showCharacterChat('lose'), 500);
+                }
             } else {
-                // Stalemate
+                // Stalemate - no moves but not in check
                 this.gameOver = true;
-                this.resultMessage = `Stalemate! It's a DRAW.`;
+                this.resultMessage = `STALEMATE - No moves available, not in check! DRAW.`;
                 this.stats.draws++;
+                this.updateCharacterStats('draw');
             }
          }
 
           // Always update status display to show checkmate/stalemate message
           this.updateStatusDisplay();
+          this.updateOpponentDisplay();
      }
 
     getAllValidMoves(side) {
@@ -936,21 +1126,249 @@ const pieceMap = {
                 if (!piece) continue;
 
                 const isCorrectColor = side === 'w' ? piece.toUpperCase() === piece : piece.toUpperCase() !== piece;
-                
+
                 if (isCorrectColor) {
                     // Temporarily set turn for move generation
                     const originalTurn = this.turn;
                     this.turn = side;
-                    
+
                     const pieceMoves = this.getValidMoves(r, c);
                     moves.push(...pieceMoves);
 
                     this.turn = originalTurn;
                 }
             }
-        }
+         }
 
          return moves;
+    }
+
+    // Wrapper for minimax - uses a copy of the board
+    getAllValidMovesForMinimax(boardState, side) {
+         const moves = [];
+
+         for (let r = 0; r < 8; r++) {
+            for (let c = 0; c < 8; c++) {
+                const piece = boardState[r][c];
+                if (!piece) continue;
+
+                const isCorrectColor = side === 'w' ? piece.toUpperCase() === piece : piece.toUpperCase() !== piece;
+
+                if (isCorrectColor) {
+                    const pieceMoves = this.getValidMovesForMinimax(boardState, r, c);
+                    moves.push(...pieceMoves);
+                }
+            }
+         }
+
+         return moves;
+    }
+
+    // Get valid moves for a piece on a given board state (for minimax)
+    getValidMovesForMinimax(boardState, fromRow, fromCol) {
+         const piece = boardState[fromRow][fromCol];
+         if (!piece) return [];
+
+         const moves = [];
+         const pieceType = piece.toLowerCase();
+         const isWhite = piece === piece.toUpperCase();
+         const toRow = isWhite ? fromRow - 1 : fromRow + 1;
+
+         // Basic movement patterns
+         switch (pieceType) {
+             case 'p': // Pawn
+                 // Forward move
+                 if (this.canMove(boardState, fromRow, fromCol, toRow, fromCol, piece)) {
+                     moves.push({ from: { row: fromRow, col: fromCol }, to: { row: toRow, col: fromCol } });
+                     // Double move from starting position
+                     const startRow = isWhite ? 6 : 1;
+                     if (fromRow === startRow) {
+                         const doubleRow = isWhite ? fromRow - 2 : fromRow + 2;
+                         if (this.canMove(boardState, fromRow, fromCol, doubleRow, fromCol, piece)) {
+                             moves.push({ from: { row: fromRow, col: fromCol }, to: { row: doubleRow, col: fromCol } });
+                         }
+                     }
+                 }
+                 // Captures
+                 for (const dc of [-1, 1]) {
+                     const captureCol = fromCol + dc;
+                     if (captureCol >= 0 && captureCol <= 7) {
+                         if (this.canCapture(boardState, fromRow, fromCol, toRow, captureCol, piece)) {
+                             moves.push({ from: { row: fromRow, col: fromCol }, to: { row: toRow, col: captureCol } });
+                         }
+                     }
+                 }
+                 break;
+
+             case 'n': // Knight
+                 for (const dr of [-2, -1, 1, 2]) {
+                     for (const dc of [-2, -1, 1, 2]) {
+                         if (Math.abs(dr) === Math.abs(dc)) continue;
+                         const nr = fromRow + dr;
+                         const nc = fromCol + dc;
+                         if (nr >= 0 && nr <= 7 && nc >= 0 && nc <= 7) {
+                             if (this.canMove(boardState, fromRow, fromCol, nr, nc, piece) ||
+                                 this.canCapture(boardState, fromRow, fromCol, nr, nc, piece)) {
+                                 moves.push({ from: { row: fromRow, col: fromCol }, to: { row: nr, col: nc } });
+                             }
+                         }
+                     }
+                 }
+                 break;
+
+             case 'b': // Bishop
+             case 'r': // Rook
+             case 'q': // Queen
+                 const directions = [];
+                 if (pieceType === 'b' || pieceType === 'q') {
+                     directions.push(...[[-1,-1], [-1,1], [1,-1], [1,1]]);
+                 }
+                 if (pieceType === 'r' || pieceType === 'q') {
+                     directions.push(...[[-1,0], [1,0], [0,-1], [0,1]]);
+                 }
+                 for (const [dr, dc] of directions) {
+                     let nr = fromRow + dr;
+                     let nc = fromCol + dc;
+                     while (nr >= 0 && nr <= 7 && nc >= 0 && nc <= 7) {
+                         if (this.canMove(boardState, fromRow, fromCol, nr, nc, piece)) {
+                             moves.push({ from: { row: fromRow, col: fromCol }, to: { row: nr, col: nc } });
+                         }
+                         if (this.canCapture(boardState, fromRow, fromCol, nr, nc, piece)) {
+                             moves.push({ from: { row: fromRow, col: fromCol }, to: { row: nr, col: nc } });
+                             break;
+                         }
+                         if (boardState[nr][nc]) break;
+                         nr += dr;
+                         nc += dc;
+                     }
+                 }
+                 break;
+
+             case 'k': // King
+                 for (const dr of [-1, 0, 1]) {
+                     for (const dc of [-1, 0, 1]) {
+                         if (dr === 0 && dc === 0) continue;
+                         const nr = fromRow + dr;
+                         const nc = fromCol + dc;
+                         if (nr >= 0 && nr <= 7 && nc >= 0 && nc <= 7) {
+                             if (this.canMove(boardState, fromRow, fromCol, nr, nc, piece) ||
+                                 this.canCapture(boardState, fromRow, fromCol, nr, nc, piece)) {
+                                 moves.push({ from: { row: fromRow, col: fromCol }, to: { row: nr, col: nc } });
+                             }
+                         }
+                     }
+                 }
+                 break;
+         }
+
+         // Filter moves that would leave king in check
+         return moves.filter(move => {
+             const testBoard = boardState.map(row => [...row]);
+             testBoard[move.to.row][move.to.col] = testBoard[move.from.row][move.from.col];
+             testBoard[move.from.row][move.from.col] = null;
+             return !this.isKingInCheckForSide(testBoard, isWhite ? 'w' : 'b');
+         });
+    }
+
+    // Check if a move is valid (target square is empty)
+    canMove(boardState, fromRow, fromCol, toRow, toCol, piece) {
+         if (toRow < 0 || toRow > 7 || toCol < 0 || toCol > 7) return false;
+         const target = boardState[toRow][toCol];
+         return target === null;
+    }
+
+    // Check if a capture is valid
+    canCapture(boardState, fromRow, fromCol, toRow, toCol, piece) {
+         if (toRow < 0 || toRow > 7 || toCol < 0 || toCol > 7) return false;
+         const target = boardState[toRow][toCol];
+         if (!target) return false;
+         const isWhite = piece === piece.toUpperCase();
+         const targetIsWhite = target === target.toUpperCase();
+         return isWhite !== targetIsWhite;
+    }
+
+    // Check if king is in check for a given side
+    isKingInCheckForSide(boardState, side) {
+         // Find king position
+         let kingRow, kingCol;
+         for (let r = 0; r < 8; r++) {
+             for (let c = 0; c < 8; c++) {
+                 const p = boardState[r][c];
+                 if (p && p.toLowerCase() === 'k' && (side === 'w' ? p === 'K' : p === 'k')) {
+                     kingRow = r;
+                     kingCol = c;
+                     break;
+                 }
+             }
+         }
+
+         if (kingRow === undefined) return false;
+
+         // Check if any opponent piece can attack the king
+         const opponent = side === 'w' ? 'b' : 'w';
+         for (let r = 0; r < 8; r++) {
+             for (let c = 0; c < 8; c++) {
+                 const piece = boardState[r][c];
+                 if (!piece) continue;
+                 const isWhite = piece === piece.toUpperCase();
+                 if (isWhite !== (opponent === 'w')) continue;
+
+                 if (this.canPieceAttack(boardState, r, c, kingRow, kingCol, piece)) {
+                     return true;
+                 }
+             }
+         }
+         return false;
+    }
+
+    // Simplified attack check for minimax (doesn't handle castling/en passant)
+    canPieceAttack(boardState, fromRow, fromCol, toRow, toCol, piece) {
+         const pieceType = piece.toLowerCase();
+         const dr = toRow - fromRow;
+         const dc = toCol - fromCol;
+         const absDr = Math.abs(dr);
+         const absDc = Math.abs(dc);
+
+         switch (pieceType) {
+             case 'p':
+                 const isWhite = piece === piece.toUpperCase();
+                 const pawnDir = isWhite ? -1 : 1;
+                 return dr === pawnDir && absDc === 1;
+
+             case 'n':
+                 return (absDr === 2 && absDc === 1) || (absDr === 1 && absDc === 2);
+
+             case 'b':
+                 if (absDr !== absDc) return false;
+                 return this.isPathClear(boardState, fromRow, fromCol, toRow, toCol);
+
+             case 'r':
+                 if (dr !== 0 && dc !== 0) return false;
+                 return this.isPathClear(boardState, fromRow, fromCol, toRow, toCol);
+
+             case 'q':
+                 if (dr !== 0 && dc !== 0 && absDr !== absDc) return false;
+                 return this.isPathClear(boardState, fromRow, fromCol, toRow, toCol);
+
+             case 'k':
+                 return absDr <= 1 && absDc <= 1;
+         }
+         return false;
+    }
+
+    // Check if path is clear between two squares
+    isPathClear(boardState, fromRow, fromCol, toRow, toCol) {
+         const dr = Math.sign(toRow - fromRow);
+         const dc = Math.sign(toCol - fromCol);
+         let r = fromRow + dr;
+         let c = fromCol + dc;
+
+         while (r !== toRow || c !== toCol) {
+             if (boardState[r][c]) return false;
+             r += dr;
+             c += dc;
+         }
+         return true;
     }
 
     updateStatusDisplay() {
@@ -1031,6 +1449,11 @@ const pieceMap = {
          // AI plays as Black — only proceed on Black's turn
          if (this.turn !== 'b') return;
 
+         // Tutorial mode - AI doesn't move
+         if (this.ai.getCharacter().depth === 0) {
+             return;
+         }
+
          const validMoves = this.getAllValidMoves(this.turn);
 
          if (validMoves.length === 0) return;
@@ -1053,6 +1476,11 @@ const pieceMap = {
                  this.makeMove(aiMove.from.row, aiMove.from.col, aiMove.to.row, aiMove.to.col, promotion, true);
                  this.stats.aiMovesMade++;
 
+                 // Show character chat after AI move
+                 if (!this.gameOver) {
+                     this.showCharacterChat('move');
+                 }
+
                  // Update status after AI move
                  setTimeout(() => {
                      if (!this.gameOver) {
@@ -1062,7 +1490,7 @@ const pieceMap = {
                         }
                     }
                  }, 100);
-            }, 200); // Small delay for dramatic effect
+             }, 200); // Small delay for dramatic effect
         }
     }
 
@@ -1083,6 +1511,7 @@ const pieceMap = {
          this.ai.reset();
          this.clearSavedGame();
 
+         this.updateOpponentDisplay();
          this.renderBoard();
          this.updateHistoryDisplay();
          this.updateStatusDisplay();
