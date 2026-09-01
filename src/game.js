@@ -1458,11 +1458,18 @@ const pieceMap = {
 
          if (validMoves.length === 0) return;
 
+         // Show thinking indicator
+         const thinkingEl = document.getElementById('ai-thinking');
+         if (thinkingEl) thinkingEl.style.display = 'block';
+
          // Use AI to select best move
          const aiMove = this.ai.getMove(this.board, validMoves, this.turn);
 
          if (aiMove) {
              setTimeout(() => {
+                 // Hide thinking indicator
+                 if (thinkingEl) thinkingEl.style.display = 'none';
+
                  // Handle promotion for pawns reaching back rank
                  let promotion = 'q';
 
@@ -1491,7 +1498,10 @@ const pieceMap = {
                     }
                  }, 100);
              }, 200); // Small delay for dramatic effect
-        }
+         } else {
+             // Hide thinking indicator if no move
+             if (thinkingEl) thinkingEl.style.display = 'none';
+         }
     }
 
     resetGame() {

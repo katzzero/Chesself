@@ -361,36 +361,22 @@ class ChessAI {
         // Sort moves for better pruning
         const sortedMoves = this.sortMoves(validMoves, board, turn);
 
-        if (turn === 'w') {
-            for (const move of sortedMoves) {
-                const newBoard = this.makeMoveCopy(board, move);
+        for (const move of sortedMoves) {
+            const newBoard = this.makeMoveCopy(board, move);
 
-                if (this.isKingInCheck(newBoard, 'b')) {
-                    // Checkmate in 1 - return immediately
-                    return { move, score: 100000 };
-                }
-
-                const score = -this.minimax(newBoard, depth - 1, 'b', -beta, -alpha);
-
-                if (score > bestScore) {
-                    bestScore = score;
-                    bestMove = move;
-                }
+            // Check if this move immediately checkmates the opponent
+            const opponent = turn === 'w' ? 'b' : 'w';
+            const opponentMoves = this.moveGenerator ? this.moveGenerator(newBoard, opponent) : [];
+            if (opponentMoves.length === 0 && this.isKingInCheck(newBoard, opponent)) {
+                // Checkmate - return immediately
+                return { move, score: 90000 };
             }
-        } else {
-            for (const move of sortedMoves) {
-                const newBoard = this.makeMoveCopy(board, move);
 
-                if (this.isKingInCheck(newBoard, 'w')) {
-                    return { move, score: 100000 };
-                }
+            const score = -this.minimax(newBoard, depth - 1, opponent, -beta, -alpha);
 
-                const score = -this.minimax(newBoard, depth - 1, 'w', -beta, -alpha);
-
-                if (score < bestScore) {
-                    bestScore = score;
-                    bestMove = move;
-                }
+            if (score > bestScore) {
+                bestScore = score;
+                bestMove = move;
             }
         }
 
@@ -407,7 +393,8 @@ class ChessAI {
 
         if (validMoves.length === 0) {
             if (this.isKingInCheck(board, turn)) {
-                return turn === 'w' ? -10000 : 10000; // Checkmate
+                // Checkmate - very bad for current player
+                return -90000;
             }
             return 0; // Stalemate
         }
@@ -417,28 +404,15 @@ class ChessAI {
 
         let bestScore = -Infinity;
 
-        if (turn === 'w') {
-            for (const move of sortedMoves) {
-                const newBoard = this.makeMoveCopy(board, move);
+        for (const move of sortedMoves) {
+            const newBoard = this.makeMoveCopy(board, move);
 
-                const score = -this.minimax(newBoard, depth - 1, 'b', -beta, -alpha);
+            const score = -this.minimax(newBoard, depth - 1, turn === 'w' ? 'b' : 'w', -beta, -alpha);
 
-                bestScore = Math.max(bestScore, score);
-                alpha = Math.max(alpha, score);
+            bestScore = Math.max(bestScore, score);
+            alpha = Math.max(alpha, score);
 
-                if (alpha >= beta) break; // Beta cutoff
-            }
-        } else {
-            for (const move of sortedMoves) {
-                const newBoard = this.makeMoveCopy(board, move);
-
-                const score = -this.minimax(newBoard, depth - 1, 'w', -beta, -alpha);
-
-                bestScore = Math.max(bestScore, score);
-                alpha = Math.max(alpha, score);
-
-                if (alpha >= beta) break;
-            }
+            if (alpha >= beta) break; // Beta cutoff
         }
 
         return bestScore === -Infinity ? 0 : bestScore;
@@ -620,19 +594,26 @@ class ChessAI {
 
         switch (style) {
             case 'aggressive':
-                multipliers.attackBonus = 4.0;
-                multipliers.checkBonus = 5.0;
+                multipliers.attackBonus = 6.0;
+                multipliers.checkBonus = 8.0;
                 multipliers.mobilityBonus = 2.0;
-                multipliers.materialBonus = 0.3;
-                multipliers.kingSafety = 0.1; // Ignore own safety, go all out
-                multipliers.edgeBonus = 3.0;   // Drive king to edge
-                multipliers.rookCutBonus = 3.0; // Cut off escape squares
+                multipliers.materialBonus = 0.2;
+                multipliers.kingSafety = 0.01; // Ignore own safety completely
+                multipliers.edgeBonus = 5.0;   // Drive king to edge aggressively
+                multipliers.rookCutBonus = 5.0; // Cut off escape squares aggressively
                 break;
             case 'defensive':
-                multipliers.kingSafety = 2.5;
-                multipliers.materialBonus = 1.5;
-                multipliers.attackBonus = 0.3;
+                multipliers.kingSafety = 3.0;
+                multipliers.materialBonus = 2.0;
+                multipliers.attackBonus = 0.2;
                 multipliers.mobilityBonus = 0.5;
+                break;
+            case 'tactical':
+                multipliers.tradeBonus = 3.0;
+                multipliers.materialBonus = 2.5;
+                multipliers.checkBonus = 2.0;
+                multipliers.kingSafety = 0.5;
+                multipliers.attackBonus = 1.5;
                 break;
             case 'positional':
                 multipliers.centerControl = 2.0;

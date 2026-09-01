@@ -3,12 +3,9 @@ version: '3.8'
 services:
   chesself:
     build:
-      context: ./docker
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: docker/Dockerfile
     ports:
       - "80:80"
     container_name: chesself-chess-game
     restart: unless-stopped
-
-volumes:
-  chesself_data:

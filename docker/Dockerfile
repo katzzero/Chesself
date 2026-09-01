@@ -7,12 +7,19 @@ RUN rm -f /etc/nginx/conf.d/default.conf
 # Copy source files from src directory
 COPY src/ /usr/share/nginx/html/
 
-# Create nginx config
+# Create nginx config with security headers
 RUN echo 'server { \
     listen 80; \
     server_name localhost; \
+\
     root /usr/share/nginx/html; \
     index index.html; \
+\
+    # Security headers \
+    add_header X-Content-Type-Options nosniff; \
+    add_header X-Frame-Options SAMEORIGIN; \
+    add_header X-XSS-Protection "1; mode=block"; \
+\
     location / { \
         try_files $uri $uri/ /index.html; \
     } \
